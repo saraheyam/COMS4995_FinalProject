@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[202]:
+# In[ ]:
 
 
 import torch
@@ -38,18 +38,16 @@ def loadDict(filename):
     fi.close()
     return(gene_dict)
 
-gene_dict = loadDict("data/gm_5.expr.csv")
 
 def loadData(filename,windows,gene_dict, num_hms):
     
-    with open("data/gm.train.csv") as fi:
+    with open(filename) as fi:
         csv_reader=csv.reader(fi)
         data = list(csv_reader)
     
         ncols=(len(data[0]))
     fi.close()
 
-    windows = 20
     nrows=len(data)
     ngenes=nrows/windows
     nfeatures=ncols-1
