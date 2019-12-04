@@ -14,7 +14,7 @@ import random
 import numpy as np
 from sklearn import metrics
 import evaluate
-import data
+import data_v1
 import gc
 
 class ContrastiveLoss(torch.nn.Module):
