@@ -1,0 +1,142 @@
+---
+title: 'Test: Annotate the Chromatin Peaks by Gene'
+output:
+  pdf_document: default
+  html_notebook: default
+  html_document:
+    df_print: paged
+---
+
+```{r, include = F}
+library(ChIPseeker)
+library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+library("org.Hs.eg.db")
+library(ggplot2)
+txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
+invisible(library(ChIPseeker))
+invisible(library(clusterProfiler))
+invisible(library(dplyr))
+
+
+```
+
+
+```{r}
+# preprocessed bed peaks file in linux
+# it's basically a csv with three columns:
+# chromosome name, start bp, end bp
+# for most atac-seq files, you can just split by the ":" and "-""
+
+K562_peaks <- readPeakFile('HumanSC_ATAC/GSE65360_single-K562.peaks.bed', as = "GRanges")
+GM_peaks <- readPeakFile('HumanSC_ATAC/GSE65360_single-GM12878.peaks.bed', as = "GRanges")
+H1_peaks <- readPeakFile('HumanSC_ATAC/GSE65360_single-H1ESC.peaks.bed', as = "GRanges")
+BJ_peaks <- readPeakFile('HumanSC_ATAC/GSE65360_single-BJ.peaks.bed', as = 'GRanges')
+```
+
+
+```{r}
+# keep to the same parameters for the annotations
+K562_annot <- annotatePeak(K562_peaks, tssRegion = c(-3000, 3000), 
+                              TxDb = txdb, annoDb = "org.Hs.eg.db", assignGenomicAnnotation = T)
+GM_annot <- annotatePeak(GM_peaks, tssRegion = c(-3000, 3000), 
+                              TxDb = txdb, annoDb = "org.Hs.eg.db", assignGenomicAnnotation = T)
+H1_annot <- annotatePeak(H1_peaks, tssRegion = c(-3000, 3000), 
+                              TxDb = txdb, annoDb = "org.Hs.eg.db", assignGenomicAnnotation = T)
+BJ_annot <- annotatePeak(BJ_peaks, tssRegion = c(-3000, 3000), 
+                              TxDb = txdb, annoDb = "org.Hs.eg.db", assignGenomicAnnotation = T)
+```
+
+```{r}
+# process annotations to have original peak label for matching
+get_annot <- function(annot_df) {
+  df <- as.data.frame(annot_df)[, c(1:4, 6, 8:10, 12:17)]
+  df$peaks <- with(df, paste0(seqnames, ":", start, "-", end))
+  df <- df[, c(15, 4:14)]
+  
+  return(df)
+}
+```
+
+```{r}
+# do not use dumb names like mine
+K562_annots <- get_annot(K562_annot)
+GM_annots <- get_annot(GM_annot)
+H1_annots <- get_annot(H1_annot)
+BJ_annots <- get_annot(BJ_annot)
+```
+
+#### Will likely have to remove the specifics about the Intron and Exon annotations, because they're too specific to each gene. Also that would probably be too many variables to work with. Without the specificc, we would have:
+
+* Distal Intergenic
+* Promoter
+    + (<=1kb, 1-2kb, 2-3kb)
+* 5' UTR
+* 3' UTR
+* Downstream
+    + (<1kb, 1-2kb, 2-3kb)  
+    
+
+```{r}
+K562_annots$annotation <- gsub("Exon.*", "Exon", K562_annots[, 3]) %>% 
+  gsub("Intron.*", "Intron", .) 
+
+GM_annots$annotation <- gsub("Exon.*", "Exon", GM_annots[, 3]) %>% 
+  gsub("Intron.*", "Intron", .) 
+
+H1_annots$annotation <- gsub("Exon.*", "Exon", H1_annots[, 3]) %>% 
+  gsub("Intron.*", "Intron", .) 
+
+
+K562_annots <- na.omit(K562_annots[c(1, 3:5, 10)])
+GM_annots <- na.omit(GM_annots[c(1, 3:5, 10)])
+H1_annots <- na.omit(H1_annots[c(1, 3:5, 10)])
+```
+
+
+
+
+```{r}
+write.csv(GM_annots, "GM_ATAC_annots.csv", col.names = T)
+write.csv(K562_annots, "K562_ATAC_annots.csv", col.names = T)
+write.csv(H1_annots, "H1_ATAC_annots.csv", col.names = T ) 
+```
+
+
+```{r}
+GM_counts <- group_by(GM_annots, ENSEMBL, annotation) %>% summarise(., count = n()) %>% data.frame()
+K562_counts <- group_by(K562_annots, ENSEMBL, annotation) %>% summarise(., count = n()) %>% data.frame()
+H1_counts <- group_by(H1_annots, ENSEMBL, annotation) %>% summarise(., count = n()) %>% data.frame()
+
+write.csv(GM_counts, "GM_ATAC_counts.csv")
+write.csv(K562_counts, "K562_ATAC_counts.csv")
+write.csv(H1_counts, "H1_ATAC_counts.csv")
+```
+
+
+
+
+```{r}
+atac_genes <- union(GM_annots$ENSEMBL, H1_annots$ENSEMBL) %>% union(., K562_annots$ENSEMBL)
+```
+
+
+
+```{r}
+# Cell Line: K562
+#png(filename = "K562_annotations.png")
+plotAnnoPie(K562_annot, main = "K562 ATAC-seq Sequence Regions")
+#dev.off()
+# Cell Line: GM12878
+#png(filename = "GM12878_annotations.png")
+plotAnnoPie(GM_annot, main = "GM12878 ATAC-seq Sequence Regions")
+#dev.off()
+# Cell Line: H1
+#png(filename = "H1_annotations.png")
+plotAnnoPie(H1_annot, main = "H1 ATAC-seq Sequence Regions")
+#dev.off()
+# Cell Line: BJ
+#plotAnnoPie(BJ_annot)
+```
+
+
+
